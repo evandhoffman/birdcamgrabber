@@ -15,6 +15,7 @@ config.yaml
 
 # Captured images
 images/
+test_captures/
 test_frame.jpg
 
 # IDE

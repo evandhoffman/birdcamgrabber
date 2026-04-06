@@ -1,0 +1,104 @@
+# Birdfy + Tuya Cloud API: what works and what doesn't
+
+This document records what we learned about integrating a Birdfy smart bird
+feeder camera (Tuya-managed) with the Tuya Cloud API. The goal was to find
+the simplest path to capturing photos when the camera detects activity.
+
+## Device
+
+| Field | Value |
+|-------|-------|
+| Brand | Birdfy |
+| Model | BF122-C |
+| Tuya category | `sp_wnq` (Smart Bird Feeder Camera) |
+| Tuya product ID | `snqsbpfrgrqizqny` |
+| App used | Tuya Smart (migrated from Birdfy app) |
+
+## Tuya project setup
+
+- **Project type**: Smart Home, free trial plan (US data center)
+- **Account linking**: Tuya Smart app account linked to the developer project
+- **Subscribed API services**:
+  - IoT Core
+  - Smart Home Basic Service
+  - Video Cloud Storage
+  - IoT Video Live Stream
+  - Device Maintenance
+  - Device Status Notification
+  - Power Management
+  - Camera Service
+
+## What works
+
+| Capability | API | Notes |
+|-----------|-----|-------|
+| Device info | `GET /v1.0/devices/{id}` | Returns name, model, online status, IP, lat/lon (camera-reported) |
+| Live RTSP stream | `POST /v1.0/devices/{id}/stream/actions/allocate` body `{type: rtsp}` | Returns a temporary RTSPS URL — must allocate fresh per session |
+| Live FLV stream | Same endpoint, `{type: flv}` | Alternative to RTSP |
+| Live HLS stream | Same endpoint, `{type: hls}` | Alternative to RTSP |
+| Event log polling | `GET /v1.0/devices/{id}/logs?type=1` | Returns motion/detection events with timestamps |
+
+The RTSP URL is **session-scoped** — every capture cycle should request a
+fresh URL via `allocate_rtsp_url()` rather than storing one in config.
+
+## What doesn't work
+
+| Capability | Why |
+|-----------|-----|
+| Pulsar push notifications (`wss://mqe.tuyaus.com:8285/`) | 401 Unauthorized — even after enabling Device Status Notification. Likely not available on free tier or for this device category. |
+| Standard device status (`/v1.0/devices/{id}/status`) | Returns "function not support". `iot-03/.../status` returns empty array. |
+| Device functions / specifications | "not support this device" — Birdfy doesn't expose standard Tuya data points (DPs). |
+| Battery / charge state | Not exposed via any standard API. The device's `status` array is empty. Birdfy keeps power data in its own cloud. |
+| Cloud-stored snapshots and clips (the images the Tuya app shows in alerts) | All `/ipc/cloud-storage/...` endpoints return "uri path invalid" — Birdfy stores media in its proprietary cloud, not Tuya's IPC cloud storage. |
+| Camera Service endpoints (`/camera/config`, `/door-bell/screenshot`, etc.) | "uri path invalid" — Birdfy doesn't behave like a standard Tuya IPC. |
+| Device statistics / report-logs | Either "uri path invalid" or "API not subscribed" (requires paid Industry Project Data tier). |
+| Firmware info | "uri path invalid". |
+
+## Event log details
+
+Polling `/v1.0/devices/{id}/logs?type=N` returns events. Observed types:
+
+| Type | Frequency | Meaning (best guess) |
+|------|-----------|----------------------|
+| 1 | Frequent, in pairs | Motion detected (start/end?) |
+| 9 | Frequent | Detection-related (possibly AI bird detection) |
+| 2 | Rare | Other |
+
+Event payloads contain only `event_id`, `event_time`, `status`, `event_from`
+— no associated image URL, no detection class, no bounding box. To get the
+actual photo we have to grab our own RTSP frames.
+
+A motion alert sent to the Tuya app (with snapshot) corresponds to type-1
+events appearing in the log API within a few seconds.
+
+## Free-tier rate limits
+
+| Resource | Limit |
+|----------|-------|
+| API calls / month | 26,000 |
+| Messages / month | 68,000 |
+| Max devices | 50 |
+| Max controllable devices | 10 |
+| Data centers | 1 |
+
+At a 120-second poll interval over ~14h of daylight: ~12,600 API calls/month,
+leaving comfortable headroom for RTSP allocations and device info checks.
+See README for the full budget table.
+
+## Architecture implications
+
+Given these constraints, the working approach is:
+
+1. **Poll** the event log API every ~120s during daylight for new type-1 events
+2. **Allocate** a fresh RTSP URL on each detected event
+3. **Capture** a burst of frames via OpenCV from that RTSP stream
+4. **Save** locally for downstream processing (e.g. BirdVision species ID)
+
+We do not depend on:
+- Push notifications (Pulsar) — unreliable on free tier
+- Tuya cloud storage — not exposed for this device
+- Battery telemetry — not available
+
+If Birdfy ever publishes a public API for their own cloud, we could
+optionally fetch their motion-triggered snapshots and AI-detected species
+data, but that's out of scope here.

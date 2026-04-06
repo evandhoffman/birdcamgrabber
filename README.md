@@ -1,14 +1,30 @@
 # birdcamgrabber
 
-Captures bird photos from a Tuya/Birdfy smart feeder camera when bird-detection
-events fire, and saves burst frames to local storage.
+Captures photos from a Tuya/Birdfy smart feeder camera when motion is detected
+and saves burst frames to local storage.
+
+## Status
+
+Working end-to-end against a real Birdfy BF122-C camera:
+
+- Tuya Cloud API connection ✓
+- Live RTSP stream allocation and frame capture ✓
+- Motion event detection via log polling ✓
+- Dawn/dusk scheduling ✓
+- Docker / docker-compose deployment ✓
+
+Not working / not available (see [docs/birdfy-tuya-findings.md](docs/birdfy-tuya-findings.md)):
+
+- Tuya Pulsar push notifications (401 on free tier) — using polling instead
+- Battery / charge state — not exposed by Birdfy through Tuya
+- Tuya cloud-stored snapshots — Birdfy uses its own proprietary cloud
 
 ## How it works
 
-1. **Event polling** — polls the Tuya Cloud API for new bird-detection events
-   from the camera (Pulsar push events planned once auth is resolved)
+1. **Event polling** — polls the Tuya Cloud API every ~120s for new motion
+   events from the camera (event type 1 / type 9)
 2. **Burst capture** — on event, allocates a fresh RTSP stream URL from Tuya
-   and grabs frames at ~2 fps for a configurable duration
+   (URLs are session-scoped, not static) and grabs frames at ~2 fps via OpenCV
 3. **Storage** — saves frames to local filesystem:
    `YYYY-MM-DD/HHMMSS-<event-id>/frame-001.jpg`
 4. **Dawn/dusk scheduling** — only active between sunrise and sunset, computed
@@ -20,9 +36,14 @@ events fire, and saves burst frames to local storage.
 
 1. A Tuya-compatible smart bird feeder camera (e.g. Birdfy)
 2. [Tuya IoT Platform](https://iot.tuya.com) developer account (free tier)
-3. Link your Tuya Smart / Smart Life app account to the developer project
-4. Subscribe to the **Smart Home** API group (free)
-5. Note your **Access ID**, **Access Secret**, and **Device ID**
+3. A Smart Home project with these API services subscribed:
+   - **IoT Core**
+   - **Smart Home Basic Service**
+   - **IoT Video Live Stream**
+   - **Device Status Notification**
+4. Link your Tuya Smart / Smart Life app account to the developer project
+5. Note your **Access ID**, **Access Secret**, and **Device ID** (visible
+   under Devices once your account is linked)
 
 ## Tuya free-tier rate limits
 
@@ -57,8 +78,9 @@ faster polling, reduce `polling.event_interval` — but watch the budget:
 | **120s** | **~12,600** | **~13,400**            |
 | 180s     | ~8,400      | ~17,600                |
 
-Switching to Tuya Pulsar push notifications (planned) would eliminate polling
-entirely and use only the message quota instead.
+Pulsar push notifications would eliminate polling entirely, but the
+WebSocket endpoint returns 401 on the free tier even with Device Status
+Notification enabled. See the findings doc for details.
 
 ## Configuration
 
