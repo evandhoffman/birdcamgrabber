@@ -37,11 +37,18 @@ class OutputConfig:
 
 
 @dataclass
+class PollingConfig:
+    event_interval: int = 120  # seconds between event log polls during daylight
+    daylight_check_interval: int = 300  # seconds between dawn/dusk checks at night
+
+
+@dataclass
 class AppConfig:
     tuya: TuyaConfig = field(default_factory=TuyaConfig)
     location: LocationConfig = field(default_factory=LocationConfig)
     capture: CaptureConfig = field(default_factory=CaptureConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
+    polling: PollingConfig = field(default_factory=PollingConfig)
 
 
 def _apply_env_overrides(cfg: AppConfig) -> None:
@@ -77,6 +84,7 @@ def load_config(path: str | Path) -> AppConfig:
             location=LocationConfig(**raw.get("location", {})),
             capture=CaptureConfig(**raw.get("capture", {})),
             output=OutputConfig(**raw.get("output", {})),
+            polling=PollingConfig(**raw.get("polling", {})),
         )
         logger.info("Loaded config from %s", path)
 

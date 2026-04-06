@@ -17,8 +17,6 @@ from .tuya_api import TuyaClient
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = "config.yaml"
-DAYLIGHT_CHECK_INTERVAL = 60  # seconds between checks when waiting for dawn
-EVENT_POLL_INTERVAL = 30  # seconds between event log polls during daylight
 
 
 def main() -> None:
@@ -44,6 +42,11 @@ def main() -> None:
     signal.signal(signal.SIGINT, _handle_signal)
 
     logger.info("Starting birdcamgrabber")
+    logger.info(
+        "Poll intervals: events=%ds, daylight=%ds",
+        config.polling.event_interval,
+        config.polling.daylight_check_interval,
+    )
 
     client: TuyaClient | None = None
     poller: EventPoller | None = None
@@ -55,14 +58,14 @@ def main() -> None:
                     logger.info("Sunset — pausing until dawn")
                     client = None
                     poller = None
-                time.sleep(DAYLIGHT_CHECK_INTERVAL)
+                time.sleep(config.polling.daylight_check_interval)
                 continue
 
             # Initialize client on first daylight cycle
             if client is None:
                 logger.info("Daylight — connecting to Tuya API")
                 client = TuyaClient(config.tuya)
-                poller = EventPoller(client, EVENT_POLL_INTERVAL)
+                poller = EventPoller(client, config.polling.event_interval)
 
                 info = client.get_device_info()
                 if info:
@@ -90,7 +93,7 @@ def main() -> None:
                 frames = capture_burst(rtsp_url, output_dir, config.capture)
                 logger.info("Captured %d frames → %s", len(frames), output_dir)
 
-            time.sleep(EVENT_POLL_INTERVAL)
+            time.sleep(config.polling.event_interval)
     finally:
         logger.info("Shutdown complete")
 

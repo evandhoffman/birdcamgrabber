@@ -5,10 +5,10 @@ events fire, and saves burst frames to local storage.
 
 ## How it works
 
-1. **Event subscription** — connects to Tuya Cloud MQTT and listens for
-   bird-detection events from the camera
-2. **Burst capture** — on event, connects to the camera's RTSP stream and grabs
-   frames at ~2 fps for a configurable duration
+1. **Event polling** — polls the Tuya Cloud API for new bird-detection events
+   from the camera (Pulsar push events planned once auth is resolved)
+2. **Burst capture** — on event, allocates a fresh RTSP stream URL from Tuya
+   and grabs frames at ~2 fps for a configurable duration
 3. **Storage** — saves frames to local filesystem:
    `YYYY-MM-DD/HHMMSS-<event-id>/frame-001.jpg`
 4. **Dawn/dusk scheduling** — only active between sunrise and sunset, computed
@@ -23,6 +23,42 @@ events fire, and saves burst frames to local storage.
 3. Link your Tuya Smart / Smart Life app account to the developer project
 4. Subscribe to the **Smart Home** API group (free)
 5. Note your **Access ID**, **Access Secret**, and **Device ID**
+
+## Tuya free-tier rate limits
+
+The Tuya IoT Platform free trial plan has these limits:
+
+| Resource                    | Limit       |
+|-----------------------------|-------------|
+| Data centers                | 1           |
+| Max devices                 | 50          |
+| Max controllable devices    | 10          |
+| API calls / month           | **26,000**  |
+| Messages / month            | **68,000**  |
+
+### How this app stays within limits
+
+The default polling interval of **120 seconds** during daylight (~14h) yields:
+
+| Activity                | Calls/day | Calls/month |
+|-------------------------|-----------|-------------|
+| Event log polls         | ~420      | ~12,600     |
+| RTSP stream allocations | ~10–50    | ~300–1,500  |
+| Device info (1×/day)    | 1         | 30          |
+| **Total (typical)**     | **~470**  | **~14,100** |
+
+This leaves comfortable headroom under the 26,000/month cap. If you need
+faster polling, reduce `polling.event_interval` — but watch the budget:
+
+| Interval | Polls/month | Remaining for captures |
+|----------|-------------|------------------------|
+| 60s      | ~25,200     | ~800                   |
+| 90s      | ~16,800     | ~9,200                 |
+| **120s** | **~12,600** | **~13,400**            |
+| 180s     | ~8,400      | ~17,600                |
+
+Switching to Tuya Pulsar push notifications (planned) would eliminate polling
+entirely and use only the message quota instead.
 
 ## Configuration
 
@@ -64,6 +100,10 @@ capture:
 
 output:
   dir: "/data/images"           # container path; bind-mount to host
+
+polling:
+  event_interval: 120           # seconds between event log polls (daylight)
+  daylight_check_interval: 300  # seconds between dawn/dusk checks (night)
 ```
 
 Environment variables always take precedence over `config.yaml` values.
@@ -87,6 +127,6 @@ uv run python -m birdcamgrabber
 
 - **Python 3.12+**, managed with [uv](https://github.com/astral-sh/uv)
 - **Docker** with Chainguard base image (`cgr.dev/chainguard/python:latest-dev`)
-- **tuya-connector-python** for cloud API + MQTT event subscription
-- **opencv-python** (or ffmpeg) for RTSP frame capture
+- **tuya-connector-python** for cloud API + event polling
+- **opencv-python-headless** for RTSP frame capture
 - **astral** for sunrise/sunset calculation

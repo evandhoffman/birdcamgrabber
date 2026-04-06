@@ -10,6 +10,10 @@ capture:
 output:
   dir: "/data/images"           # container path; bind-mount to host
 
+polling:
+  event_interval: 120           # seconds between event log polls (daylight)
+  daylight_check_interval: 300  # seconds between dawn/dusk checks (night)
+
 # Secrets are loaded from environment variables (or .env file), not this file:
 #   TUYA_ACCESS_ID
 #   TUYA_ACCESS_SECRET
