@@ -6,6 +6,7 @@ requires-python = ">=3.12"
 dependencies = [
     "astral>=3.2",
     "opencv-python-headless>=4.13.0.92",
+    "python-dotenv>=1.2.2",
     "pyyaml>=6.0.3",
     "tuya-connector-python>=0.1.2",
 ]

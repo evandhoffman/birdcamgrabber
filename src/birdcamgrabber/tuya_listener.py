@@ -1,46 +1,48 @@
-"""Tuya Cloud MQTT listener for bird-detection events."""
+"""Tuya Cloud Pulsar listener for bird-detection events."""
 
 import logging
 from collections.abc import Callable
 
-from tuya_connector import TuyaOpenAPI, TuyaOpenMQ
+from tuya_connector import TuyaCloudPulsarTopic, TuyaOpenPulsar
 
 from .config import TuyaConfig
 
 logger = logging.getLogger(__name__)
 
-TUYA_ENDPOINTS = {
-    "us": "https://openapi.tuyaus.com",
-    "eu": "https://openapi.tuyaeu.com",
-    "cn": "https://openapi.tuyacn.com",
-    "in": "https://openapi.tuyain.com",
+PULSAR_ENDPOINTS = {
+    "us": "wss://mqe.tuyaus.com:8285/",
+    "eu": "wss://mqe.tuyaeu.com:8285/",
+    "cn": "wss://mqe.tuyacn.com:8285/",
+    "in": "wss://mqe.tuyain.com:8285/",
 }
 
 
 def start_listener(
     config: TuyaConfig,
     on_event: Callable[[dict], None],
-) -> TuyaOpenMQ:
-    """Connect to Tuya Cloud and subscribe to device events.
+) -> TuyaOpenPulsar:
+    """Connect to Tuya Cloud Pulsar and subscribe to device events.
 
     Calls `on_event(message)` whenever a message arrives for the
     configured device.
     """
-    endpoint = TUYA_ENDPOINTS.get(config.region, TUYA_ENDPOINTS["us"])
-    api = TuyaOpenAPI(endpoint, config.access_id, config.access_secret)
-    resp = api.connect()
-    logger.info("Tuya API connect: %s", resp)
+    ws_endpoint = PULSAR_ENDPOINTS.get(config.region, PULSAR_ENDPOINTS["us"])
 
-    mq = TuyaOpenMQ(api)
-    mq.start()
+    pulsar = TuyaOpenPulsar(
+        config.access_id,
+        config.access_secret,
+        ws_endpoint,
+        TuyaCloudPulsarTopic.PROD,
+    )
 
     def _on_message(msg):
         device_id = msg.get("devId", "")
         if device_id != config.device_id:
             return
-        logger.info("Event received for device %s: %s", device_id, msg)
+        logger.info("Pulsar event for device %s: %s", device_id, msg)
         on_event(msg)
 
-    mq.add_message_listener(_on_message)
-    logger.info("Listening for events on device %s", config.device_id)
-    return mq
+    pulsar.add_message_listener(_on_message)
+    pulsar.start()
+    logger.info("Pulsar listener started for device %s", config.device_id)
+    return pulsar

@@ -10,13 +10,15 @@ from uuid import uuid4
 
 from .capture import capture_burst
 from .config import load_config
+from .poller import EventPoller
 from .scheduler import is_daylight
-from .tuya_listener import start_listener
+from .tuya_api import TuyaClient
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = "config.yaml"
-POLL_INTERVAL = 60  # seconds between daylight checks when sleeping at night
+DAYLIGHT_CHECK_INTERVAL = 60  # seconds between checks when waiting for dawn
+EVENT_POLL_INTERVAL = 30  # seconds between event log polls during daylight
 
 
 def main() -> None:
@@ -41,52 +43,56 @@ def main() -> None:
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 
-    def on_bird_event(msg: dict) -> None:
-        if not is_daylight(config.location):
-            logger.info("Ignoring event outside daylight hours")
-            return
-
-        now = datetime.now(tz=timezone.utc)
-        event_id = uuid4().hex[:8]
-        date_dir = now.strftime("%Y-%m-%d")
-        burst_dir = now.strftime(f"%H%M%S-{event_id}")
-        output_dir = output_base / date_dir / burst_dir
-
-        rtsp_url = config.capture.rtsp_url
-        if not rtsp_url:
-            logger.error("No RTSP URL configured — skipping capture")
-            return
-
-        frames = capture_burst(rtsp_url, output_dir, config.capture)
-        logger.info("Captured %d frames → %s", len(frames), output_dir)
-
     logger.info("Starting birdcamgrabber")
 
-    mq = None
+    client: TuyaClient | None = None
+    poller: EventPoller | None = None
+
     try:
         while not shutdown:
             if not is_daylight(config.location):
-                if mq is not None:
-                    logger.info("Sunset — pausing listener")
-                    mq.stop()
-                    mq = None
-                logger.info(
-                    "Waiting for daylight (checking every %ds)…", POLL_INTERVAL
-                )
-                time.sleep(POLL_INTERVAL)
+                if client is not None:
+                    logger.info("Sunset — pausing until dawn")
+                    client = None
+                    poller = None
+                time.sleep(DAYLIGHT_CHECK_INTERVAL)
                 continue
 
-            if mq is None:
-                logger.info("Sunrise — starting listener")
-                mq = start_listener(config.tuya, on_bird_event)
+            # Initialize client on first daylight cycle
+            if client is None:
+                logger.info("Daylight — connecting to Tuya API")
+                client = TuyaClient(config.tuya)
+                poller = EventPoller(client, EVENT_POLL_INTERVAL)
 
-            time.sleep(POLL_INTERVAL)
+                info = client.get_device_info()
+                if info:
+                    logger.info(
+                        "Device '%s' online=%s",
+                        info.get("name"),
+                        info.get("online"),
+                    )
+
+            events = poller.check_for_new_events()
+
+            for event in events:
+                now = datetime.now(tz=timezone.utc)
+                event_id = uuid4().hex[:8]
+                date_dir = now.strftime("%Y-%m-%d")
+                burst_dir = now.strftime(f"%H%M%S-{event_id}")
+                output_dir = output_base / date_dir / burst_dir
+
+                # Get a fresh RTSP URL for each burst
+                rtsp_url = config.capture.rtsp_url or client.allocate_rtsp_url()
+                if not rtsp_url:
+                    logger.error("No RTSP URL available — skipping capture")
+                    continue
+
+                frames = capture_burst(rtsp_url, output_dir, config.capture)
+                logger.info("Captured %d frames → %s", len(frames), output_dir)
+
+            time.sleep(EVENT_POLL_INTERVAL)
     finally:
-        if mq is not None:
-            logger.info("Stopping MQTT listener")
-            mq.stop()
-
-    logger.info("Shutdown complete")
+        logger.info("Shutdown complete")
 
 
 if __name__ == "__main__":
