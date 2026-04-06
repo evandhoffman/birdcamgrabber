@@ -14,11 +14,13 @@ FROM cgr.dev/chainguard/python:latest
 # Keep runtime minimal. The app currently uses opencv-python-headless, so it
 # does not need the optional ffmpeg/libgl runtime packages.
 
+USER root
+
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
 COPY --from=builder /app/src /app/src
 
-RUN mkdir -p /data/images && chown nonroot:nonroot /data/images
+RUN ["python", "-c", "import os,pwd; u=pwd.getpwnam('nonroot'); os.makedirs('/data/images', exist_ok=True); os.chown('/data/images', u.pw_uid, u.pw_gid)"]
 VOLUME ["/data/images"]
 
 USER nonroot
