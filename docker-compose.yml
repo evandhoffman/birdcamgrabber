@@ -1,0 +1,9 @@
+services:
+  birdcamgrabber:
+    build: .
+    container_name: birdcamgrabber
+    restart: unless-stopped
+    stop_grace_period: 30s
+    volumes:
+      - ./config.yaml:/data/config.yaml:ro
+      - ./images:/data/images

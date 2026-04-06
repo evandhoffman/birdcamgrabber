@@ -1,0 +1,17 @@
+tuya:
+  access_id: "your-access-id"
+  access_secret: "your-access-secret"
+  device_id: "your-device-id"
+  region: "us"                  # us, eu, cn, in
+
+location:
+  lat: 40.75
+  lon: -73.50
+
+capture:
+  fps: 2                        # frames per second during burst
+  duration: 5                   # burst duration in seconds
+  rtsp_url: ""                  # leave blank to auto-discover via Tuya API
+
+output:
+  dir: "/data/images"           # container path; bind-mount to host
