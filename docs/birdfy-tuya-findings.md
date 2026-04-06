@@ -83,7 +83,7 @@ events appearing in the log API within a few seconds.
 
 At a 120-second poll interval over ~14h of daylight: ~12,600 API calls/month,
 leaving comfortable headroom for RTSP allocations and device info checks.
-See README for the full budget table.
+See README.md for the full budget table.
 
 ## Architecture implications
 
