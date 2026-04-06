@@ -18,5 +18,8 @@ dependencies = [
 [tool.setuptools]
 package-dir = {"" = "src"}
 
+[tool.uv]
+package = true
+
 [tool.setuptools.packages.find]
 where = ["src"]
