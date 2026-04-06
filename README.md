@@ -26,18 +26,36 @@ events fire, and saves burst frames to local storage.
 
 ## Configuration
 
-Settings live in `config.yaml` (mounted into the container):
+Non-secret settings live in `config.yaml` (mounted into the container).
+Secrets and location are loaded from environment variables (`.env` file),
+which override anything in `config.yaml`.
+
+Copy the example files to get started:
+
+```bash
+cp config.yaml.example config.yaml
+cp .env.example .env
+# edit .env with your Tuya credentials and real coordinates
+```
+
+### `.env` (secrets — not checked in)
+
+```
+TUYA_ACCESS_ID=your-access-id
+TUYA_ACCESS_SECRET=your-access-secret
+TUYA_DEVICE_ID=your-device-id
+TUYA_REGION=us
+BIRDCAM_LAT=40.770998606849155
+BIRDCAM_LON=-73.97321317729947
+BIRDCAM_RTSP_URL=rtsp://...
+```
+
+### `config.yaml` (non-secret defaults)
 
 ```yaml
-tuya:
-  access_id: "your-access-id"
-  access_secret: "your-access-secret"
-  device_id: "your-device-id"
-  region: "us"                  # us, eu, cn, in
-
 location:
-  lat: 40.75
-  lon: -73.50
+  lat: 40.770998606849155
+  lon: -73.97321317729947
 
 capture:
   fps: 2                        # frames per second during burst
@@ -47,6 +65,8 @@ capture:
 output:
   dir: "/data/images"           # container path; bind-mount to host
 ```
+
+Environment variables always take precedence over `config.yaml` values.
 
 ## Running
 

@@ -1,12 +1,6 @@
-tuya:
-  access_id: "your-access-id"
-  access_secret: "your-access-secret"
-  device_id: "your-device-id"
-  region: "us"                  # us, eu, cn, in
-
 location:
-  lat: 40.75
-  lon: -73.50
+  lat: 40.770998606849155
+  lon: -73.97321317729947
 
 capture:
   fps: 2                        # frames per second during burst
@@ -15,3 +9,12 @@ capture:
 
 output:
   dir: "/data/images"           # container path; bind-mount to host
+
+# Secrets are loaded from environment variables (or .env file), not this file:
+#   TUYA_ACCESS_ID
+#   TUYA_ACCESS_SECRET
+#   TUYA_DEVICE_ID
+#   TUYA_REGION          (optional, defaults to "us")
+#   BIRDCAM_LAT          (optional, overrides location.lat)
+#   BIRDCAM_LON          (optional, overrides location.lon)
+#   BIRDCAM_RTSP_URL     (optional, overrides capture.rtsp_url)
