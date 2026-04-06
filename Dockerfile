@@ -9,11 +9,10 @@ RUN uv sync --no-dev --frozen --no-install-project
 COPY src/ src/
 RUN uv sync --no-dev --frozen
 
+FROM cgr.dev/chainguard/python:latest
 
-FROM cgr.dev/chainguard/python:latest-dev
-
-# ffmpeg for potential future use; opencv needs libgl
-RUN apk add --no-cache ffmpeg libstdc++
+# Keep runtime minimal. The app currently uses opencv-python-headless, so it
+# does not need the optional ffmpeg/libgl runtime packages.
 
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv
