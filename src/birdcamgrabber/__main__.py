@@ -1,6 +1,7 @@
 """Entry point: python -m birdcamgrabber"""
 
 import logging
+import queue
 import signal
 import sys
 import time
@@ -13,6 +14,7 @@ from .config import load_config
 from .poller import EventPoller
 from .scheduler import is_daylight
 from .tuya_api import TuyaClient
+from .tuya_listener import start_listener
 
 logger = logging.getLogger(__name__)
 
@@ -50,12 +52,17 @@ def main() -> None:
 
     client: TuyaClient | None = None
     poller: EventPoller | None = None
+    listener = None
+    pulsar_queue: queue.SimpleQueue = queue.SimpleQueue()
 
     try:
         while not shutdown:
             if not is_daylight(config.location):
                 if client is not None:
                     logger.info("Sunset — pausing until dawn")
+                    if listener is not None:
+                        listener.stop()
+                        listener = None
                     client = None
                     poller = None
                 time.sleep(config.polling.daylight_check_interval)
@@ -66,6 +73,10 @@ def main() -> None:
                 logger.info("Daylight — connecting to Tuya API")
                 client = TuyaClient(config.tuya)
                 poller = EventPoller(client, config.polling.event_interval)
+                listener = start_listener(
+                    config.tuya,
+                    lambda msg: pulsar_queue.put(msg),
+                )
 
                 info = client.get_device_info()
                 if info:
@@ -74,6 +85,12 @@ def main() -> None:
                         info.get("name"),
                         info.get("online"),
                     )
+
+            # Drain any Pulsar push messages and log them so we can learn
+            # the payload format before using them to trigger captures.
+            while not pulsar_queue.empty():
+                msg = pulsar_queue.get_nowait()
+                logger.info("Pulsar message: %s", msg)
 
             power = client.get_power_stats()
             if power:
@@ -106,6 +123,8 @@ def main() -> None:
 
             time.sleep(config.polling.event_interval)
     finally:
+        if listener is not None:
+            listener.stop()
         logger.info("Shutdown complete")
 
 
