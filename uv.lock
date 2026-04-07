@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.12"
 
 [options]
-exclude-newer = "2026-03-30T22:27:28.92418Z"
+exclude-newer = "2026-03-31T21:55:04.865376Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -21,7 +21,7 @@ wheels = [
 [[package]]
 name = "birdcamgrabber"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "astral" },
     { name = "opencv-python-headless" },

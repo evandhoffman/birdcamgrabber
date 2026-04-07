@@ -75,6 +75,17 @@ def main() -> None:
                         info.get("online"),
                     )
 
+            power = client.get_power_stats()
+            if power:
+                logger.info(
+                    "Power stats: battery=%s%% powermode=%s low_threshold=%s%% awake=%s battery_report_cap=%s",
+                    power.get("wireless_electricity", "?"),
+                    power.get("wireless_powermode", "?"),
+                    power.get("wireless_lowpower", "?"),
+                    power.get("wireless_awake", "?"),
+                    power.get("battery_report_cap", "?"),
+                )
+
             events = poller.check_for_new_events()
 
             for event in events:

@@ -49,6 +49,30 @@ class TuyaClient:
             return None
         return resp["result"]
 
+    def get_power_stats(self) -> dict | None:
+        """Fetch battery / power state via the Smart Home shadow properties API.
+
+        Uses the known Birdfy / sp_wnq DP codes confirmed against a real device:
+          wireless_electricity  (DP 145) — battery percentage 0-100
+          wireless_powermode    (DP 146) — power source enum (meaning TBD)
+          wireless_lowpower     (DP 147) — low-battery alert threshold %
+          wireless_awake        (DP 149) — device awake/dormant bool
+          battery_report_cap   (DP 126) — secondary capacity report (meaning TBD)
+        """
+        codes = "wireless_electricity,wireless_powermode,wireless_lowpower,wireless_awake,battery_report_cap"
+        resp = self.api.get(
+            f"/v2.0/cloud/thing/{self.config.device_id}/shadow/properties",
+            params={"codes": codes},
+        )
+        if not resp.get("success"):
+            logger.warning("Failed to fetch power stats: %s", resp)
+            return None
+        props = {p["code"]: p["value"] for p in (resp.get("result") or {}).get("properties", [])}
+        if not props:
+            logger.warning("Power stats response contained no properties")
+            return None
+        return props
+
     def get_event_logs(
         self,
         start_time_ms: int,
