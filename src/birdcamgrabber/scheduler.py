@@ -1,7 +1,7 @@
 """Dawn/dusk scheduling — determines whether capture should be active."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from astral import LocationInfo
 from astral.sun import sun
@@ -22,11 +22,13 @@ def is_daylight(location: LocationConfig) -> bool:
     )
     s = sun(loc.observer, date=datetime.utcnow().date())
     now = datetime.utcnow().replace(tzinfo=s["sunrise"].tzinfo)
-    daylight = s["sunrise"] <= now <= s["sunset"]
-    if not daylight:
+    window_start = s["sunrise"] - timedelta(hours=1)
+    window_end = s["sunset"] + timedelta(hours=1)
+    active = window_start <= now <= window_end
+    if not active:
         logger.debug(
-            "Outside daylight hours (sunrise=%s, sunset=%s)",
-            s["sunrise"].isoformat(),
-            s["sunset"].isoformat(),
+            "Outside active hours (start=%s, end=%s)",
+            window_start.isoformat(),
+            window_end.isoformat(),
         )
-    return daylight
+    return active
