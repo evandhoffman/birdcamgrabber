@@ -48,7 +48,7 @@ fresh URL via `allocate_rtsp_url()` rather than storing one in config.
 | Pulsar push notifications (`wss://mqe.tuyaus.com:8285/`) | 401 Unauthorized — even after enabling Device Status Notification. Likely not available on free tier or for this device category. |
 | Standard device status (`/v1.0/devices/{id}/status`) | Returns "function not support". `iot-03/.../status` returns empty array. |
 | Device functions / specifications | "not support this device" — Birdfy doesn't expose standard Tuya data points (DPs). |
-| Battery / charge state | Not exposed via any standard API. The device's `status` array is empty. Birdfy keeps power data in its own cloud. |
+| Battery / charge state | See [Battery: revisited](#battery-revisited) below — the data **is** in Tuya cloud, our project just can't see it yet. |
 | Cloud-stored snapshots and clips (the images the Tuya app shows in alerts) | All `/ipc/cloud-storage/...` endpoints return "uri path invalid" — Birdfy stores media in its proprietary cloud, not Tuya's IPC cloud storage. |
 | Camera Service endpoints (`/camera/config`, `/door-bell/screenshot`, etc.) | "uri path invalid" — Birdfy doesn't behave like a standard Tuya IPC. |
 | Device statistics / report-logs | Either "uri path invalid" or "API not subscribed" (requires paid Industry Project Data tier). |
@@ -102,3 +102,85 @@ We do not depend on:
 If Birdfy ever publishes a public API for their own cloud, we could
 optionally fetch their motion-triggered snapshots and AI-detected species
 data, but that's out of scope here.
+
+## Battery: revisited
+
+The original investigation concluded that battery state was simply not
+available. After observing that the Tuya Smart app shows
+**Battery Powered 20%** plus a **Low Battery Alert Threshold** setting on
+the Power Management Settings screen, we know the data definitely lives in
+Tuya cloud — we just weren't asking for it the right way.
+
+### Known Birdfy / `sp_wnq` battery DPs
+
+Reverse-engineered by the
+[`make-all/tuya-local`](https://github.com/make-all/tuya-local/issues/698)
+project from a real BF122-style feeder:
+
+| DP id | Code (best guess) | Type | Notes |
+|-------|-------------------|------|-------|
+| 145 | `battery_percentage` | Integer 0-100 | The 20% the app shows |
+| 146 | `power_supply_mode` | Enum `"0"`/`"1"` | `0`=battery, `1`=AC |
+| 147 | `low_battery_alarm` | Integer 10-30 | The threshold slider |
+| 149 | `device_state` | Bool | dormant / waking |
+| 126 | `battery_report_capacity` | Integer | Sometimes used instead of 145 |
+
+These are **vendor DPs**, not part of any Tuya standard schema. That is the
+root cause of every empty `status` response we saw earlier.
+
+### Why our earlier probes returned empty
+
+Tuya IoT projects have a per-device-type setting called **Control
+Instruction Mode** with two values:
+
+- **Standard Instruction** (default): the cloud only surfaces DPs that
+  match a published standard schema. Vendor DPs are silently filtered out
+  of `/v1.0/devices/{id}/status` and friends. This is what we have now.
+- **DP Instruction**: the cloud surfaces every raw DP the device reports.
+
+To switch it: `iot.tuya.com` → Cloud → Development → *project* → Devices
+tab → pencil-edit the device type → tick **DP Instruction** → save. There
+is no global toggle; it has to be done per device type, and it can take
+several minutes to propagate.
+
+After flipping the toggle, `GET /v1.0/devices/{device_id}/status` should
+start returning entries with codes like `battery_percentage`,
+`power_supply_mode`, `low_battery_alarm`, etc.
+
+### Endpoints worth probing
+
+Even without flipping DP Instruction mode, two newer endpoints sometimes
+expose vendor DPs that the legacy `/v1.0/.../status` route hides:
+
+- `GET /v2.0/cloud/thing/{device_id}/shadow/properties`
+  Smart Home Device Management Service "Query Properties". Returns the
+  latest reported value of every property the cloud has cached for the
+  thing, including custom DPs. Accepts an optional `codes=a,b,c` filter.
+- `GET /v2.0/cloud/thing/{device_id}/model`
+  Returns the data model — useful for confirming which property *codes*
+  this specific device declares before we go hunting for values.
+
+The Power Management API service (which we already have subscribed) also
+documents `GET /v1.0/iot-03/power-devices/{device_id}/balance-charge`
+("Query Remaining Battery Capacity"), but that endpoint is intended for
+energy meters/sub-meters, not IPC cameras — worth a probe but unlikely.
+
+### How to verify locally
+
+`scripts/test_battery3.py` walks all of the above and prints anything that
+looks like battery data. Run it once with the project still in Standard
+Instruction mode to confirm whether the `/v2.0/cloud/thing/.../shadow/...`
+route exposes the DPs without any project changes; if it doesn't, flip the
+device type to DP Instruction mode and re-run.
+
+### Plan once we confirm an endpoint works
+
+1. Add a `TuyaClient.get_battery_state()` method that returns
+   `{percentage: int, power_source: "battery"|"ac", low: bool}`.
+2. Read it from the main loop on a long interval (say once per hour, well
+   inside the rate-limit budget — that's only ~720 calls/month) and log
+   it. Optionally surface it via a future health endpoint.
+3. Update this doc to reflect what actually worked.
+
+We should not bake any of this into the production loop until the probe
+script confirms which endpoint+mode combination this account can use.
