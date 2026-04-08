@@ -22,6 +22,7 @@ class TuyaConfig:
 class LocationConfig:
     lat: float = 40.770998606849155
     lon: float = -73.97321317729947
+    timezone: str = "America/New_York"
 
 
 @dataclass
@@ -65,6 +66,8 @@ def _apply_env_overrides(cfg: AppConfig) -> None:
         cfg.location.lat = float(v)
     if v := os.environ.get("BIRDCAM_LON"):
         cfg.location.lon = float(v)
+    if v := os.environ.get("BIRDCAM_TIMEZONE"):
+        cfg.location.timezone = v
     if v := os.environ.get("BIRDCAM_RTSP_URL"):
         cfg.capture.rtsp_url = v
 
