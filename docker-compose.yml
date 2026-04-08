@@ -6,6 +6,8 @@ services:
     stop_grace_period: 30s
     env_file:
       - .env
+    environment:
+      TZ: ${BIRDCAM_TIMEZONE:-America/New_York}
     volumes:
       - ./config.yaml:/data/config.yaml:ro
       - ./images:/data/images
@@ -19,6 +21,7 @@ services:
     environment:
       BIRDCAM_IMAGE_DIR: /data/images
       BIRDCAM_GALLERY_PORT: "8383"
+      TZ: ${BIRDCAM_TIMEZONE:-America/New_York}
     ports:
       - "8383:8383"
     volumes:

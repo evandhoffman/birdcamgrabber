@@ -1,6 +1,7 @@
 location:
   lat: 40.770998606849155
   lon: -73.97321317729947
+  timezone: "America/New_York"  # IANA timezone name; also sets container TZ
 
 capture:
   duration: 20                  # clip length in seconds

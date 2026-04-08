@@ -1,6 +1,7 @@
 """Entry point: python -m birdcamgrabber"""
 
 import logging
+import os
 import queue
 import signal
 import sys
@@ -36,6 +37,12 @@ def _upload_to_birdvision(clip_path, captured_at, config, event_id):
 
 
 def main() -> None:
+    # Apply timezone before configuring logging so timestamps are in local time.
+    # Read directly from env first (fastest path); full config load follows.
+    tz = os.environ.get("BIRDCAM_TIMEZONE", "America/New_York")
+    os.environ["TZ"] = tz
+    time.tzset()
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
@@ -43,6 +50,11 @@ def main() -> None:
 
     config_path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_CONFIG_PATH
     config = load_config(config_path)
+
+    # If the config file specifies a different timezone, reapply it.
+    if config.location.timezone != tz:
+        os.environ["TZ"] = config.location.timezone
+        time.tzset()
 
     output_base = Path(config.output.dir)
     output_base.mkdir(parents=True, exist_ok=True)
