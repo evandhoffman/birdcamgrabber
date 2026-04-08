@@ -32,7 +32,8 @@ def capture_clip(
         "-rtsp_transport", "tcp",
         "-i", rtsp_url,
         "-t", str(config.duration),
-        "-c", "copy",          # stream-copy: no re-encode
+        "-c:v", "copy",        # stream-copy video: no re-encode
+        "-an",                 # drop audio (pcm_mulaw not supported in MP4)
         "-movflags", "+faststart",
         "-y",                  # overwrite if exists
         str(output_path),
