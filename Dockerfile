@@ -7,6 +7,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --no-dev --frozen --no-install-project
 
 COPY src/ src/
+COPY scripts/ scripts/
 
 FROM cgr.dev/chainguard/python:latest-dev
 
