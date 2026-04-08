@@ -9,3 +9,17 @@ services:
     volumes:
       - ./config.yaml:/data/config.yaml:ro
       - ./images:/data/images
+
+  gallery:
+    build: .
+    container_name: birdcamgrabber-gallery
+    restart: unless-stopped
+    entrypoint: ["python", "-m", "birdcamgrabber.gallery"]
+    command: []
+    environment:
+      BIRDCAM_IMAGE_DIR: /data/images
+      BIRDCAM_GALLERY_PORT: "8383"
+    ports:
+      - "8383:8383"
+    volumes:
+      - ./images:/data/images:ro

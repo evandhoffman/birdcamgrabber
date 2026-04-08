@@ -9,6 +9,7 @@ description = "Captures bird photos from a Tuya/Birdfy smart feeder camera"
 requires-python = ">=3.12"
 dependencies = [
     "astral>=3.2",
+    "flask>=3.0",
     "opencv-python-headless>=4.13.0.92",
     "python-dotenv>=1.2.2",
     "pyyaml>=6.0.3",

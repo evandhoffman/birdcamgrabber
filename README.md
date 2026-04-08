@@ -138,6 +138,19 @@ docker compose up -d
 
 Images are written to the bind-mounted volume at `./images/` on the host.
 
+This also starts a small **web gallery** at <http://localhost:8383> for
+browsing captures by date. It's a Flask app served by the same image with
+a different entrypoint, mounting `./images` read-only.
+
+To run only the gallery:
+
+```bash
+docker compose up -d gallery
+```
+
+Override the published port via the `gallery.ports` mapping in
+`docker-compose.yml` if 8383 is already taken.
+
 ## Development
 
 ```bash
