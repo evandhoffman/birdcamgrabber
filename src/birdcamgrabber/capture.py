@@ -1,59 +1,64 @@
-"""Burst frame capture from an RTSP stream."""
+"""Video clip capture from an RTSP stream."""
 
 import logging
-import time
+import subprocess
 from pathlib import Path
-
-import cv2
 
 from .config import CaptureConfig
 
 logger = logging.getLogger(__name__)
 
 
-def capture_burst(
+def capture_clip(
     rtsp_url: str,
-    output_dir: Path,
+    output_path: Path,
     config: CaptureConfig,
-) -> list[Path]:
-    """Connect to an RTSP stream and capture a burst of frames.
+) -> Path | None:
+    """Capture a video clip from an RTSP stream using ffmpeg.
 
-    Returns a list of paths to saved JPEG files.
+    Saves to ``output_path`` (should end in ``.mp4``).
+    Returns the path on success, ``None`` on failure.
+
+    ffmpeg is preferred over OpenCV's VideoWriter because it can copy the
+    H.264 stream directly from RTSP without re-encoding, which is faster,
+    avoids quality loss, and produces a file BirdVision can play in the
+    browser without a codec warning.
     """
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    cap = cv2.VideoCapture(rtsp_url)
-    if not cap.isOpened():
-        logger.error("Failed to open RTSP stream: %s", rtsp_url)
-        return []
-
-    interval = 1.0 / config.fps
-    total_frames = config.fps * config.duration
-    saved: list[Path] = []
+    cmd = [
+        "ffmpeg",
+        "-loglevel", "warning",
+        "-rtsp_transport", "tcp",
+        "-i", rtsp_url,
+        "-t", str(config.duration),
+        "-c", "copy",          # stream-copy: no re-encode
+        "-movflags", "+faststart",
+        "-y",                  # overwrite if exists
+        str(output_path),
+    ]
 
     logger.info(
-        "Starting burst capture: %d frames at %d fps from %s",
-        total_frames,
-        config.fps,
-        rtsp_url,
+        "Capturing %ds clip from RTSP → %s",
+        config.duration,
+        output_path,
     )
-
     try:
-        for i in range(total_frames):
-            ret, frame = cap.read()
-            if not ret:
-                logger.warning("Stream read failed at frame %d", i + 1)
-                break
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=config.duration + 30)
+    except FileNotFoundError:
+        logger.error("ffmpeg not found — is it installed in the container?")
+        return None
+    except subprocess.TimeoutExpired:
+        logger.error("ffmpeg timed out capturing clip")
+        return None
 
-            frame_path = output_dir / f"frame-{i + 1:03d}.jpg"
-            cv2.imwrite(str(frame_path), frame)
-            saved.append(frame_path)
-            logger.debug("Saved %s", frame_path)
+    if result.returncode != 0:
+        logger.error("ffmpeg failed (rc=%d): %s", result.returncode, result.stderr.strip())
+        return None
 
-            if i < total_frames - 1:
-                time.sleep(interval)
-    finally:
-        cap.release()
+    if not output_path.exists() or output_path.stat().st_size == 0:
+        logger.error("ffmpeg exited cleanly but output file is missing or empty: %s", output_path)
+        return None
 
-    logger.info("Burst complete: %d frames saved to %s", len(saved), output_dir)
-    return saved
+    logger.info("Clip saved: %s (%d bytes)", output_path, output_path.stat().st_size)
+    return output_path

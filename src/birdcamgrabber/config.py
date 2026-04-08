@@ -27,8 +27,7 @@ class LocationConfig:
 
 @dataclass
 class CaptureConfig:
-    fps: int = 2
-    duration: int = 5
+    duration: int = 20      # clip length in seconds
     rtsp_url: str = ""
 
 
@@ -44,12 +43,20 @@ class PollingConfig:
 
 
 @dataclass
+class BirdVisionConfig:
+    enabled: bool = False
+    url: str = ""
+    api_token: str = ""
+
+
+@dataclass
 class AppConfig:
     tuya: TuyaConfig = field(default_factory=TuyaConfig)
     location: LocationConfig = field(default_factory=LocationConfig)
     capture: CaptureConfig = field(default_factory=CaptureConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
     polling: PollingConfig = field(default_factory=PollingConfig)
+    birdvision: BirdVisionConfig = field(default_factory=BirdVisionConfig)
 
 
 def _apply_env_overrides(cfg: AppConfig) -> None:
@@ -70,6 +77,13 @@ def _apply_env_overrides(cfg: AppConfig) -> None:
         cfg.location.timezone = v
     if v := os.environ.get("BIRDCAM_RTSP_URL"):
         cfg.capture.rtsp_url = v
+    if v := os.environ.get("BIRDVISION_URL"):
+        cfg.birdvision.url = v
+        cfg.birdvision.enabled = True
+    if v := os.environ.get("BIRDVISION_API_TOKEN"):
+        cfg.birdvision.api_token = v
+        if cfg.birdvision.url:
+            cfg.birdvision.enabled = True
 
 
 def load_config(path: str | Path) -> AppConfig:
@@ -88,6 +102,7 @@ def load_config(path: str | Path) -> AppConfig:
             capture=CaptureConfig(**raw.get("capture", {})),
             output=OutputConfig(**raw.get("output", {})),
             polling=PollingConfig(**raw.get("polling", {})),
+            birdvision=BirdVisionConfig(**raw.get("birdvision", {})),
         )
         logger.info("Loaded config from %s", path)
 

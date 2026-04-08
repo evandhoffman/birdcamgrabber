@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.12"
 
 [options]
-exclude-newer = "2026-04-01T01:04:00.111732Z"
+exclude-newer = "2026-04-01T02:11:03.628268Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -28,6 +28,7 @@ dependencies = [
     { name = "opencv-python-headless" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
+    { name = "requests" },
     { name = "tuya-connector-python" },
     { name = "tzdata" },
 ]
@@ -39,6 +40,7 @@ requires-dist = [
     { name = "opencv-python-headless", specifier = ">=4.13.0.92" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
+    { name = "requests", specifier = ">=2.33.1" },
     { name = "tuya-connector-python", specifier = ">=0.1.2" },
     { name = "tzdata", specifier = ">=2025.3" },
 ]

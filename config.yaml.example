@@ -3,8 +3,7 @@ location:
   lon: -73.97321317729947
 
 capture:
-  fps: 2                        # frames per second during burst
-  duration: 5                   # burst duration in seconds
+  duration: 20                  # clip length in seconds
   rtsp_url: ""                  # leave blank to auto-discover via Tuya API
 
 output:
@@ -14,6 +13,11 @@ polling:
   event_interval: 120           # seconds between event log polls (daylight)
   daylight_check_interval: 300  # seconds between dawn/dusk checks (night)
 
+birdvision:
+  enabled: true
+  url: "https://birdvision.example.com"
+  # api_token set via BIRDVISION_API_TOKEN env var (see .env.example)
+
 # Secrets are loaded from environment variables (or .env file), not this file:
 #   TUYA_ACCESS_ID
 #   TUYA_ACCESS_SECRET
@@ -22,3 +26,5 @@ polling:
 #   BIRDCAM_LAT          (optional, overrides location.lat)
 #   BIRDCAM_LON          (optional, overrides location.lon)
 #   BIRDCAM_RTSP_URL     (optional, overrides capture.rtsp_url)
+#   BIRDVISION_API_TOKEN (secret token for BirdVision API)
+#   BIRDVISION_URL       (optional, overrides birdvision.url)
