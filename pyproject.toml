@@ -13,6 +13,7 @@ dependencies = [
     "opencv-python-headless>=4.13.0.92",
     "python-dotenv>=1.2.2",
     "pyyaml>=6.0.3",
+    "requests>=2.33.1",
     "tuya-connector-python>=0.1.2",
     "tzdata>=2025.3",
 ]

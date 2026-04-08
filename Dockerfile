@@ -8,12 +8,11 @@ RUN uv sync --no-dev --frozen --no-install-project
 
 COPY src/ src/
 
-FROM cgr.dev/chainguard/python:latest
+FROM cgr.dev/chainguard/python:latest-dev
 
-# Keep runtime minimal. The app currently uses opencv-python-headless, so it
-# does not need the optional ffmpeg/libgl runtime packages.
-
+# Install ffmpeg for RTSP clip capture.  The -dev variant is required for apk.
 USER root
+RUN apk add --no-cache ffmpeg
 
 WORKDIR /app
 COPY --from=builder /app/.venv /app/.venv

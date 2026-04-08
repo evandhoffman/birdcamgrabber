@@ -4,12 +4,14 @@ import logging
 import queue
 import signal
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from .capture import capture_burst
+from .birdvision_client import post_clip
+from .capture import capture_clip
 from .config import load_config
 from .poller import EventPoller
 from .scheduler import is_daylight, log_schedule
@@ -19,6 +21,18 @@ from .tuya_listener import start_listener
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONFIG_PATH = "config.yaml"
+
+
+def _upload_to_birdvision(clip_path, captured_at, config, event_id):
+    """Run in a background thread so the main poll loop isn't blocked."""
+    post_clip(
+        clip_path,
+        captured_at,
+        config.birdvision,
+        latitude=config.location.lat,
+        longitude=config.location.lon,
+        source_event_id=event_id,
+    )
 
 
 def main() -> None:
@@ -49,6 +63,10 @@ def main() -> None:
         config.polling.event_interval,
         config.polling.daylight_check_interval,
     )
+    if config.birdvision.enabled:
+        logger.info("BirdVision integration enabled: %s", config.birdvision.url)
+    else:
+        logger.info("BirdVision integration disabled")
     log_schedule(config.location)
 
     client: TuyaClient | None = None
@@ -89,8 +107,7 @@ def main() -> None:
                         info.get("online"),
                     )
 
-            # Drain any Pulsar push messages and log them so we can learn
-            # the payload format before using them to trigger captures.
+            # Drain any Pulsar push messages
             while not pulsar_queue.empty():
                 msg = pulsar_queue.get_nowait()
                 logger.info("Pulsar message: %s", msg)
@@ -112,17 +129,30 @@ def main() -> None:
                 now = datetime.now(tz=timezone.utc)
                 event_id = uuid4().hex[:8]
                 date_dir = now.strftime("%Y-%m-%d")
-                burst_dir = now.strftime(f"%H%M%S-{event_id}")
-                output_dir = output_base / date_dir / burst_dir
+                clip_name = now.strftime(f"%H%M%S-{event_id}.mp4")
+                clip_path = output_base / date_dir / clip_name
 
-                # Get a fresh RTSP URL for each burst
+                # Get a fresh RTSP URL for each capture
                 rtsp_url = config.capture.rtsp_url or client.allocate_rtsp_url()
                 if not rtsp_url:
                     logger.error("No RTSP URL available — skipping capture")
                     continue
 
-                frames = capture_burst(rtsp_url, output_dir, config.capture)
-                logger.info("Captured %d frames → %s", len(frames), output_dir)
+                result = capture_clip(rtsp_url, clip_path, config.capture)
+                if result is None:
+                    logger.error("Clip capture failed, skipping BirdVision upload")
+                    continue
+
+                logger.info("Captured clip → %s", clip_path)
+
+                if config.birdvision.enabled:
+                    t = threading.Thread(
+                        target=_upload_to_birdvision,
+                        args=(clip_path, now, config, event_id),
+                        daemon=True,
+                        name=f"bv-upload-{event_id}",
+                    )
+                    t.start()
 
             time.sleep(config.polling.event_interval)
     finally:

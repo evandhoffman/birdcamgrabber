@@ -1,12 +1,12 @@
-"""Minimal web gallery for browsing captured bird photos.
+"""Minimal web gallery for browsing captured bird video clips.
 
-Run as `python -m birdcamgrabber.gallery`. Serves images from
+Run as `python -m birdcamgrabber.gallery`. Serves clips from
 ``BIRDCAM_IMAGE_DIR`` (default ``/data/images``) on
 ``BIRDCAM_GALLERY_PORT`` (default 8383).
 
 The directory layout produced by the capture loop is::
 
-    <image_dir>/YYYY-MM-DD/HHMMSS-<event_id>/frame-NNN.jpg
+    <image_dir>/YYYY-MM-DD/HHMMSS-<event_id>.mp4
 """
 
 import logging
@@ -31,14 +31,10 @@ h1 { margin-top: 0; }
 nav { margin-bottom: 1rem; font-size: 0.9rem; }
 ul.list { list-style: none; padding: 0; }
 ul.list li { padding: 0.5rem 0; border-bottom: 1px solid #333; }
-.session { margin-bottom: 2rem; }
-.session h3 { margin: 0 0 0.4rem 0; font-weight: normal; font-size: 0.95rem;
-              color: #aaa; }
-.grid { display: grid; gap: 0.4rem;
-        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-.grid a { display: block; }
-.grid img { width: 100%; height: 140px; object-fit: cover; border-radius: 4px;
-            background: #222; display: block; }
+.grid { display: grid; gap: 0.75rem;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.clip video { width: 100%; border-radius: 4px; background: #222; display: block; }
+.clip p { margin: 0.3rem 0 0; font-size: 0.85rem; color: #aaa; }
 .empty { color: #888; font-style: italic; }
 """
 
@@ -50,7 +46,7 @@ INDEX_TMPL = """<!doctype html>
 <ul class="list">
 {% for d, count in dates %}
   <li><a href="{{ url_for('date_view', date=d) }}">{{ d }}</a>
-      &mdash; {{ count }} capture{{ '' if count == 1 else 's' }}</li>
+      &mdash; {{ count }} clip{{ '' if count == 1 else 's' }}</li>
 {% endfor %}
 </ul>
 {% else %}
@@ -64,28 +60,25 @@ DATE_TMPL = """<!doctype html>
 <title>{{ date }} &mdash; Birdcam</title><style>{{ css }}</style></head><body>
 <nav><a href="{{ url_for('index') }}">&larr; All dates</a></nav>
 <h1>{{ date }}</h1>
-{% if sessions %}
-{% for session, frames in sessions %}
-<div class="session">
-  <h3>{{ session }} &mdash; {{ frames|length }} frame{{ '' if frames|length == 1 else 's' }}</h3>
-  <div class="grid">
-  {% for f in frames %}
-    <a href="{{ url_for('image', date=date, session=session, frame=f) }}" target="_blank">
-      <img src="{{ url_for('image', date=date, session=session, frame=f) }}" loading="lazy" alt="{{ f }}">
-    </a>
-  {% endfor %}
+{% if clips %}
+<div class="grid">
+{% for clip in clips %}
+  <div class="clip">
+    <video controls preload="metadata">
+      <source src="{{ url_for('clip', date=date, filename=clip) }}" type="video/mp4">
+    </video>
+    <p>{{ clip }}</p>
   </div>
-</div>
 {% endfor %}
+</div>
 {% else %}
-<p class="empty">No captures on this date.</p>
+<p class="empty">No clips on this date.</p>
 {% endif %}
 </body></html>
 """
 
 
 def _safe_child(parent: Path, name: str) -> Path:
-    """Resolve ``parent/name`` and ensure it stays within ``parent``."""
     if "/" in name or "\\" in name or name in ("", ".", ".."):
         abort(404)
     child = (parent / name).resolve()
@@ -104,7 +97,7 @@ def index():
     if IMAGE_DIR.exists():
         for d in sorted(IMAGE_DIR.iterdir(), reverse=True):
             if d.is_dir():
-                count = sum(1 for c in d.iterdir() if c.is_dir())
+                count = sum(1 for f in d.iterdir() if f.suffix.lower() == ".mp4")
                 dates.append((d.name, count))
     return render_template_string(INDEX_TMPL, dates=dates, css=CSS)
 
@@ -114,24 +107,17 @@ def date_view(date: str):
     date_dir = _safe_child(IMAGE_DIR, date)
     if not date_dir.is_dir():
         abort(404)
-    sessions: list[tuple[str, list[str]]] = []
-    for s in sorted(date_dir.iterdir(), reverse=True):
-        if not s.is_dir():
-            continue
-        frames = sorted(
-            f.name for f in s.iterdir()
-            if f.is_file() and f.suffix.lower() in (".jpg", ".jpeg", ".png")
-        )
-        sessions.append((s.name, frames))
-    return render_template_string(DATE_TMPL, date=date, sessions=sessions, css=CSS)
+    clips = sorted(
+        f.name for f in date_dir.iterdir()
+        if f.is_file() and f.suffix.lower() == ".mp4"
+    )
+    return render_template_string(DATE_TMPL, date=date, clips=clips, css=CSS)
 
 
-@app.route("/image/<date>/<session>/<frame>")
-def image(date: str, session: str, frame: str):
+@app.route("/clip/<date>/<filename>")
+def clip(date: str, filename: str):
     date_dir = _safe_child(IMAGE_DIR, date)
-    session_dir = _safe_child(date_dir, session)
-    # send_from_directory itself guards against traversal in `frame`.
-    return send_from_directory(session_dir, frame)
+    return send_from_directory(date_dir, filename)
 
 
 def main() -> None:
