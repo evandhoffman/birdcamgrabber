@@ -35,9 +35,10 @@ def get_schedule(location: LocationConfig) -> dict:
 def log_schedule(location: LocationConfig) -> None:
     """Log today's sunrise, sunset, and active window in the configured timezone."""
     sched = get_schedule(location)
-    fmt = f"%H:%M:%S {location.timezone}"
+    fmt = "%H:%M"
     logger.info(
-        "Today's schedule: sunrise=%s sunset=%s | active %s – %s",
+        "Today's schedule (%s): sunrise=%s sunset=%s | active %s – %s",
+        location.timezone,
         sched["sunrise"].strftime(fmt),
         sched["sunset"].strftime(fmt),
         sched["wake"].strftime(fmt),
