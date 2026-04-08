@@ -12,7 +12,7 @@ from uuid import uuid4
 from .capture import capture_burst
 from .config import load_config
 from .poller import EventPoller
-from .scheduler import is_daylight
+from .scheduler import is_daylight, log_schedule
 from .tuya_api import TuyaClient
 from .tuya_listener import start_listener
 
@@ -49,6 +49,7 @@ def main() -> None:
         config.polling.event_interval,
         config.polling.daylight_check_interval,
     )
+    log_schedule(config.location)
 
     client: TuyaClient | None = None
     poller: EventPoller | None = None
@@ -65,11 +66,13 @@ def main() -> None:
                         listener = None
                     client = None
                     poller = None
+                    log_schedule(config.location)
                 time.sleep(config.polling.daylight_check_interval)
                 continue
 
             # Initialize client on first daylight cycle
             if client is None:
+                log_schedule(config.location)
                 logger.info("Daylight — connecting to Tuya API")
                 client = TuyaClient(config.tuya)
                 poller = EventPoller(client, config.polling.event_interval)
