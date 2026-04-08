@@ -13,6 +13,7 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "pyyaml>=6.0.3",
     "tuya-connector-python>=0.1.2",
+    "tzdata>=2025.3",
 ]
 
 [tool.setuptools]

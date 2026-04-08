@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.12"
 
 [options]
-exclude-newer = "2026-03-31T21:55:04.865376Z"
+exclude-newer = "2026-04-01T00:58:46.606838Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -28,6 +28,7 @@ dependencies = [
     { name = "python-dotenv" },
     { name = "pyyaml" },
     { name = "tuya-connector-python" },
+    { name = "tzdata" },
 ]
 
 [package.metadata]
@@ -37,6 +38,7 @@ requires-dist = [
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "tuya-connector-python", specifier = ">=0.1.2" },
+    { name = "tzdata", specifier = ">=2025.3" },
 ]
 
 [[package]]
